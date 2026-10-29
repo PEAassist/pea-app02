@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบริหารจัดการคำร้อง</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Sarabun (เหมาะกับงานราชการ/เอกสารทางการไทย) -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        
+        /* ซ่อนส่วนปรินท์ในหน้าจอปกติ */
+        #print-area { display: none; }
+
+        /* การตั้งค่าสำหรับการพิมพ์ (ครึ่ง A4 หรือ A5 แนวนอน) */
+        @media print {
+            @page { size: A5 landscape; margin: 10mm; }
+            body { background-color: white; }
+            #app-container { display: none !important; } /* ซ่อนแอปปกติ */
+            #print-area { 
+                display: block; 
+                width: 100%;
+            }
+            .print-box {
+                border: 2px solid #000;
+                padding: 20px;
+                border-radius: 8px;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- แอปพลิเคชันหลัก -->
+    <div id="app-container" class="min-h-screen flex flex-col md:flex-row">
+        
+        <!-- Sidebar -->
+        <aside class="w-full md:w-64 bg-indigo-900 text-white shadow-xl flex-shrink-0">
+            <div class="p-6">
+                <h1 class="text-xl font-bold text-white tracking-wide">ระบบคุมงาน PEA</h1>
+                <p class="text-indigo-300 text-sm mt-1">Version 1.0</p>
+            </div>
+            <nav class="mt-4">
+                <button onclick="switchTab('form')" class="w-full text-left px-6 py-3 hover:bg-indigo-800 transition border-l-4 border-transparent focus:border-white focus:bg-indigo-800" id="nav-form">
+                    📝 บันทึกคำร้องใหม่
+                </button>
+                <button onclick="switchTab('dashboard')" class="w-full text-left px-6 py-3 hover:bg-indigo-800 transition border-l-4 border-transparent focus:border-white focus:bg-indigo-800" id="nav-dashboard">
+                    📊 แดชบอร์ด & ตาราง
+                </button>
+                <button onclick="switchTab('charts')" class="w-full text-left px-6 py-3 hover:bg-indigo-800 transition border-l-4 border-transparent focus:border-white focus:bg-indigo-800" id="nav-charts">
+                    📈 สรุปกราฟข้อมูล
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+            
+            <!-- Section 1: Form -->
+            <div id="section-form" class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">บันทึกข้อมูลลูกค้าใหม่</h2>
+                <form id="requestForm" onsubmit="handleFormSubmit(event)" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">ชื่อผู้ใช้ไฟฟ้า *</label>
+                        <input type="text" id="custName" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">เบอร์โทรลูกค้า *</label>
+                        <input type="text" id="custPhone" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="space-y-1 md:col-span-2">
+                        <label class="text-sm font-semibold text-gray-600">สถานที่ใช้ไฟฟ้า (ที่อยู่) *</label>
+                        <textarea id="custAddress" required rows="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">พิกัด Latitude</label>
+                        <input type="text" id="lat" placeholder="13.xxxxxx" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">พิกัด Longitude</label>
+                        <input type="text" id="lng" placeholder="100.xxxxxx" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">ประเภทคำร้อง *</label>
+                        <select id="reqType" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option>ขอติดตั้งมิเตอร์ใหม่</option>
+                            <option>ขอเพิ่มขนาดมิเตอร์</option>
+                            <option>ขอตัดฝากมิเตอร์</option>
+                            <option>อื่นๆ</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">ขนาดมิเตอร์ (แอมป์/เฟส) *</label>
+                        <select id="meterSize" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option>5(15)A 1 Phase</option>
+                            <option>15(45)A 1 Phase</option>
+                            <option>15(45)A 3 Phase</option>
+                            <option>30(100)A 3 Phase</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">ชื่อช่างสำรวจ (ถ้ามี)</label>
+                        <input type="text" id="surveyorName" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-semibold text-gray-600">เบอร์โทรช่างสำรวจ</label>
+                        <input type="text" id="surveyorPhone" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="space-y-1 md:col-span-2">
+                        <label class="text-sm font-semibold text-gray-600">หมายเหตุ</label>
+                        <input type="text" id="note" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    
+                    <div class="md:col-span-2 pt-4">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5">
+                            💾 บันทึกข้อมูลและสร้างคำร้อง
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Section 2: Dashboard -->
+            <div id="section-dashboard" class="hidden max-w-6xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">ตารางจัดการคำร้อง</h2>
+                    <span class="bg-indigo-100 text-indigo-800 text-sm font-semibold px-3 py-1 rounded-full" id="totalCount">รวม 0 รายการ</span>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 border-b">
+                                    <th class="p-4 font-semibold text-sm">เลขคำร้อง</th>
+                                    <th class="p-4 font-semibold text-sm">ชื่อลูกค้า</th>
+                                    <th class="p-4 font-semibold text-sm">ประเภท</th>
+                                    <th class="p-4 font-semibold text-sm">สถานะปัจจุบัน</th>
+                                    <th class="p-4 font-semibold text-sm text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="divide-y divide-gray-100">
+                                <!-- Data will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Charts -->
+            <div id="section-charts" class="hidden max-w-6xl mx-auto space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">สรุปข้อมูลสถิติ</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Chart 1 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="font-semibold text-gray-700 mb-4 text-center">จำนวนคำร้องแยกตามสถานะ</h3>
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                    <!-- Chart 2 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="font-semibold text-gray-700 mb-4 text-center">ประเภทคำร้อง</h3>
+                        <canvas id="typeChart"></canvas>
+                    </div>
+                    <!-- Chart 3 (Full width) -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 md:col-span-2">
+                        <h3 class="font-semibold text-gray-700 mb-4 text-center">ปริมาณคำร้องรายวัน</h3>
+                        <canvas id="timelineChart" height="100"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal เปลี่ยนสถานะ -->
+    <div id="statusModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl">
+            <h3 class="text-xl font-bold mb-4">อัปเดตสถานะงาน: <span id="modalReqNo" class="text-indigo-600"></span></h3>
+            <div class="space-y-4">
+                <select id="newStatus" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    <option value="รอสำรวจ">รอสำรวจ</option>
+                    <option value="ส่งช่างสำรวจ">ส่งช่างสำรวจ</option>
+                    <option value="สำรวจแล้ว-ผ่าน">สำรวจแล้ว-ผ่าน</option>
+                    <option value="สำรวจแล้ว-ไม่ผ่าน">สำรวจแล้ว-ไม่ผ่าน</option>
+                    <option value="ชำระเงิน">ชำระเงิน</option>
+                    <option value="ส่ง ผมต.">ส่ง ผมต.</option>
+                    <option value="ติดตั้งมิเตอร์">ติดตั้งมิเตอร์</option>
+                    <option value="ยกเลิกคำร้อง">ยกเลิกคำร้อง</option>
+                </select>
+                <div>
+                    <label class="text-sm text-gray-600">บันทึกเพิ่มเติม (History Log)</label>
+                    <input type="text" id="statusRemark" placeholder="เช่น มอบหมายช่างสมชาย..." class="w-full px-4 py-2 border rounded-lg mt-1">
+                </div>
+                <div class="flex space-x-3 pt-4">
+                    <button onclick="saveStatus()" class="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700">บันทึก</button>
+                    <button onclick="closeModal()" class="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg font-bold hover:bg-gray-300">ยกเลิก</button>
+                </div>
+            </div>
+            
+            <!-- History Log -->
+            <div class="mt-6 border-t pt-4">
+                <h4 class="font-semibold text-sm mb-2 text-gray-600">ประวัติการเปลี่ยนสถานะ</h4>
+                <ul id="historyList" class="text-sm space-y-2 text-gray-500 max-h-40 overflow-y-auto">
+                    <!-- History here -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ส่วนที่ใช้สำหรับพิมพ์ใบนัดหมาย (ซ่อนไว้ โชว์ตอน Print) -->
+    <div id="print-area">
+        <div class="print-box">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold">ใบนัดหมาย / ใบรับคำร้อง</h1>
+                <p class="text-lg">แผนกบริการและลูกค้าสัมพันธ์ โทร. 034-353-214</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div><strong>1. เลขคำร้อง (No.):</strong> <span id="p-no"></span></div>
+                <div><strong>7. ประเภทคำร้อง:</strong> <span id="p-type"></span></div>
+                
+                <div><strong>2. ชื่อผู้ใช้ไฟฟ้า:</strong> <span id="p-name"></span></div>
+                <div><strong>8. ขนาดมิเตอร์:</strong> <span id="p-meter"></span></div>
+                
+                <div class="col-span-2"><strong>3. สถานที่ใช้ไฟฟ้า:</strong> <span id="p-address"></span></div>
+                
+                <div><strong>4. เบอร์โทรลูกค้า:</strong> <span id="p-phone"></span></div>
+                <div><strong>9. ค่าใช้จ่ายประมาณการ:</strong> <span>(รอประเมินหลังสำรวจ)</span></div>
+                
+                <div><strong>5. พิกัด (Lat, Long):</strong> <span id="p-gps"></span></div>
+                <div><strong>10. ชื่อช่างสำรวจ:</strong> <span id="p-sName"></span> (โทร <span id="p-sPhone"></span>)</div>
+                
+                <div class="col-span-2"><strong>6. หมายเหตุ:</strong> <span id="p-note"></span></div>
+            </div>
+            
+            <div class="mt-8 flex justify-between text-sm border-t border-black pt-4">
+                <div><strong>วันที่รับคำร้อง:</strong> <span id="p-date"></span></div>
+                <div><strong>ผู้รับคำร้อง:</strong> <span>(เจ้าหน้าที่)</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data Structure (In-Memory สำหรับทดสอบ)
+        // เมื่อนำไปใช้จริง ส่วนนี้จะถูกแทนที่ด้วยการดึงข้อมูลจาก Supabase
+        let requests = [];
+        let logs = [];
+        let currentEditingId = null;
+
+        // ตัวแปรสำหรับเก็บ instance ของ Chart
+        let chart1, chart2, chart3;
+
+        // Initialize หน้าแรก
+        window.onload = () => {
+            switchTab('form');
+            // ใส่ Mock Data นิดหน่อยให้ดูกราฟได้
+            addMockData();
+        };
+
+        function switchTab(tabId) {
+            document.getElementById('section-form').classList.add('hidden');
+            document.getElementById('section-dashboard').classList.add('hidden');
+            document.getElementById('section-charts').classList.add('hidden');
+            
+            document.getElementById(`section-${tabId}`).classList.remove('hidden');
+            
+            if (tabId === 'dashboard') renderTable();
+            if (tabId === 'charts') updateCharts();
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            // สร้างเลขคำร้องแบบง่ายๆ
+            const reqNo = 'REQ-' + new Date().getFullYear() + String(requests.length + 1).padStart(4, '0');
+            const today = new Date().toISOString().split('T')[0];
+
+            const newRequest = {
+                id: Date.now().toString(),
+                reqNo: reqNo,
+                name: document.getElementById('custName').value,
+                phone: document.getElementById('custPhone').value,
+                address: document.getElementById('custAddress').value,
+                lat: document.getElementById('lat').value,
+                lng: document.getElementById('lng').value,
+                type: document.getElementById('reqType').value,
+                meterSize: document.getElementById('meterSize').value,
+                surveyorName: document.getElementById('surveyorName').value,
+                surveyorPhone: document.getElementById('surveyorPhone').value,
+                note: document.getElementById('note').value,
+                status: 'รอสำรวจ',
+                date: today
+            };
+
+            requests.push(newRequest);
+            
+            // บันทึก Log
+            logs.push({ reqId: newRequest.id, status: 'รอสำรวจ', date: new Date().toLocaleString(), remark: 'เปิดคำร้องใหม่' });
+
+            alert(`บันทึกสำเร็จ! เลขคำร้องของคุณคือ ${reqNo}`);
+            document.getElementById('requestForm').reset();
+            
+            // พาไปหน้าพิมพ์ใบนัด
+            printSlip(newRequest.id);
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            document.getElementById('totalCount').innerText = `รวม ${requests.length} รายการ`;
+
+            // เรียงจากใหม่ไปเก่า
+            const reversed = [...requests].reverse();
+
+            reversed.forEach(req => {
+                // เลือกสี Badge ตามสถานะ
+                let badgeColor = 'bg-gray-100 text-gray-800';
+                if(req.status === 'ติดตั้งมิเตอร์') badgeColor = 'bg-green-100 text-green-800';
+                if(req.status.includes('รอ') || req.status.includes('ส่ง')) badgeColor = 'bg-yellow-100 text-yellow-800';
+                if(req.status.includes('ไม่ผ่าน') || req.status === 'ยกเลิกคำร้อง') badgeColor = 'bg-red-100 text-red-800';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 transition border-b">
+                        <td class="p-4 text-sm font-medium text-indigo-600">${req.reqNo}</td>
+                        <td class="p-4 text-sm">
+                            <p class="font-semibold text-gray-800">${req.name}</p>
+                            <p class="text-xs text-gray-500">${req.phone}</p>
+                        </td>
+                        <td class="p-4 text-sm text-gray-600">${req.type}</td>
+                        <td class="p-4 text-sm">
+                            <span class="px-2 py-1 rounded-full text-xs font-semibold ${badgeColor}">${req.status}</span>
+                        </td>
+                        <td class="p-4 text-sm text-center space-x-2">
+                            <button onclick="openModal('${req.id}')" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded hover:bg-indigo-100 text-xs font-bold">อัปเดตงาน</button>
+                            <button onclick="printSlip('${req.id}')" class="bg-gray-100 text-gray-700 px-3 py-1 rounded hover:bg-gray-200 text-xs font-bold">พิมพ์ใบนัด</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // --- ระบบอัปเดตสถานะ ---
+        function openModal(id) {
+            currentEditingId = id;
+            const req = requests.find(r => r.id === id);
+            document.getElementById('modalReqNo').innerText = req.reqNo;
+            document.getElementById('newStatus').value = req.status;
+            document.getElementById('statusRemark').value = '';
+            
+            // โชว์ History
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+            const reqLogs = logs.filter(l => l.reqId === id).reverse();
+            reqLogs.forEach(l => {
+                historyList.innerHTML += `<li><span class="text-xs text-gray-400">[${l.date}]</span> <b>${l.status}</b>: ${l.remark || '-'}</li>`;
+            });
+
+            document.getElementById('statusModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('statusModal').classList.add('hidden');
+        }
+
+        function saveStatus() {
+            const newStatus = document.getElementById('newStatus').value;
+            const remark = document.getElementById('statusRemark').value;
+            
+            // อัปเดตใน Array
+            const reqIndex = requests.findIndex(r => r.id === currentEditingId);
+            requests[reqIndex].status = newStatus;
+            
+            // เพิ่ม Log
+            logs.push({ 
+                reqId: currentEditingId, 
+                status: newStatus, 
+                date: new Date().toLocaleString(), 
+                remark: remark 
+            });
+
+            closeModal();
+            renderTable(); // รีเฟรชตาราง
+        }
+
+        // --- ระบบพิมพ์ใบนัดหมาย ---
+        function printSlip(id) {
+            const req = requests.find(r => r.id === id);
+            
+            // ใส่ข้อมูลลงในหน้า Print
+            document.getElementById('p-no').innerText = req.reqNo;
+            document.getElementById('p-name').innerText = req.name;
+            document.getElementById('p-address').innerText = req.address;
+            document.getElementById('p-phone').innerText = req.phone;
+            document.getElementById('p-gps').innerText = `${req.lat || '-'}, ${req.lng || '-'}`;
+            document.getElementById('p-note').innerText = req.note || '-';
+            document.getElementById('p-type').innerText = req.type;
+            document.getElementById('p-meter').innerText = req.meterSize;
+            document.getElementById('p-sName').innerText = req.surveyorName || 'รอมอบหมาย';
+            document.getElementById('p-sPhone').innerText = req.surveyorPhone || '-';
+            document.getElementById('p-date').innerText = req.date;
+
+            // เรียกคำสั่ง Print ของ Browser
+            window.print();
+        }
+
+        // --- ระบบกราฟ (Chart.js) ---
+        function updateCharts() {
+            // นับข้อมูลสถานะ
+            const statusCounts = {};
+            const typeCounts = {};
+            const dateCounts = {};
+
+            requests.forEach(r => {
+                statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
+                typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
+                dateCounts[r.date] = (dateCounts[r.date] || 0) + 1;
+            });
+
+            // ลบกราฟเก่าถ้ามี
+            if(chart1) chart1.destroy();
+            if(chart2) chart2.destroy();
+            if(chart3) chart3.destroy();
+
+            // Chart 1: Status (Doughnut)
+            chart1 = new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(statusCounts),
+                    datasets: [{ data: Object.values(statusCounts), backgroundColor: ['#fde047', '#facc15', '#4ade80', '#f87171', '#60a5fa', '#818cf8', '#34d399', '#9ca3af'] }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            // Chart 2: Type (Pie)
+            chart2 = new Chart(document.getElementById('typeChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(typeCounts),
+                    datasets: [{ data: Object.values(typeCounts), backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316'] }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            // Chart 3: Timeline (Bar)
+            const sortedDates = Object.keys(dateCounts).sort();
+            chart3 = new Chart(document.getElementById('timelineChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedDates,
+                    datasets: [{ label: 'จำนวนคำร้อง', data: sortedDates.map(d => dateCounts[d]), backgroundColor: '#6366f1', borderRadius: 4 }]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+        }
+
+        // Mock Data ไว้สำหรับให้เห็นภาพกราฟ
+        function addMockData() {
+            requests = [
+                { id: '1', reqNo: 'REQ-20240001', name: 'สมชาย ใจดี', phone: '0812345678', address: '123 ม.1', type: 'ขอติดตั้งมิเตอร์ใหม่', meterSize: '15(45)A 1 Phase', status: 'รอสำรวจ', date: '2024-10-25' },
+                { id: '2', reqNo: 'REQ-20240002', name: 'สมหญิง รักดี', phone: '0898765432', address: '456 ม.2', type: 'ขอเพิ่มขนาดมิเตอร์', meterSize: '30(100)A 3 Phase', status: 'ติดตั้งมิเตอร์', date: '2024-10-26' },
+                { id: '3', reqNo: 'REQ-20240003', name: 'บริษัท ทดสอบ จำกัด', phone: '021112222', address: '789 ถ.หลัก', type: 'ขอติดตั้งมิเตอร์ใหม่', meterSize: '15(45)A 3 Phase', status: 'ชำระเงิน', date: '2024-10-26' }
+            ];
+            requests.forEach(r => logs.push({reqId: r.id, status: r.status, date: 'mock', remark: 'mock'}));
+        }
+    </script>
+</body>
+</html>
